@@ -4,7 +4,7 @@ class OpusFileStream:
     def __init__(self, filename):
         self.opusfile = open(filename, "rb")
         if not self.opusfile:
-            raise NameError(f'Failed opening {filename}')
+            raise NameError(f"Failed opening {filename}")
         self.segment_sizes = bytes()
         self.segment_idx = 0
         self.segments_count = 0
@@ -14,7 +14,6 @@ class OpusFileStream:
         self.frames_per_packet = 0
         self.saved_packets = list()
         self.__fill_opus_config()
-
 
     def __get_next_ogg_packet_start(self):
         # Each Ogg page starts with magic bytes "OggS"
@@ -32,7 +31,6 @@ class OpusFileStream:
                     return True
             else:
                 verified_bytes = 0
-
 
     def __parse_ogg_packet_header(self):
         # The Ogg page has the following format:
@@ -66,7 +64,6 @@ class OpusFileStream:
         if self.segments_count > 0:
             self.segment_sizes = self.opusfile.read(self.segments_count)
 
-
     def __get_ogg_segment_data(self):
         data = bytes()
         continue_needed = False
@@ -79,13 +76,12 @@ class OpusFileStream:
             segment_size = self.segment_sizes[self.segment_idx]
             segment = self.opusfile.read(segment_size)
             data += segment
-            continue_needed = (segment_size == 255)
+            continue_needed = segment_size == 255
             self.segment_idx += 1
             if not continue_needed:
                 break
 
         return data, continue_needed
-
 
     def __parse_opushead_header(self, data):
         # OpusHead header format:
@@ -112,7 +108,6 @@ class OpusFileStream:
         self.sample_rate = int.from_bytes(data[12:15], "little")
         return True
 
-
     def __parse_opustags_header(self, data):
         #  0               1               2               3                Byte
         #  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1| Bit
@@ -135,7 +130,6 @@ class OpusFileStream:
         # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         return data.find(bytes("OpusTags", "ascii")) == 0
 
-
     def __parse_opus_toc(self, data):
         # https://tools.ietf.org/html/rfc6716#section-3.1
         # Each Opus packet starts with the Table Of Content Byte:
@@ -150,7 +144,9 @@ class OpusFileStream:
             frames_per_packet = 2
         else:
             # API requires predefined number of frames per packet
-            print("An arbitrary number of frames in the packet - possible audio arifacts")
+            print(
+                "An arbitrary number of frames in the packet - possible audio arifacts"
+            )
             frames_per_packet = 1
 
         configs_ms = {}
@@ -162,7 +158,7 @@ class OpusFileStream:
         configs_ms[60] = [3, 7, 11]
 
         durations = [2.5, 5, 10, 20, 40, 60]
-        conf = data[0] >> 3 & 0x1f
+        conf = data[0] >> 3 & 0x1F
 
         for duration in durations:
             if conf in configs_ms[duration]:
@@ -170,11 +166,9 @@ class OpusFileStream:
 
         return frames_per_packet, 20
 
-
     def all_headers_parsed(self):
         # There are three mandatory headers. Don't send data until the headers are parsed.
         return self.opus_headers_count >= 3
-
 
     def get_next_opus_packet(self):
         continue_needed = False
@@ -227,7 +221,6 @@ class OpusFileStream:
 
         return None
 
-
     def __parse_opus_headers(self, data):
         # First header is OpusHead, second one - OpusTags.
         # Third one is a Table Of Contents byte from the first Opus packet.
@@ -244,9 +237,8 @@ class OpusFileStream:
             self.opus_headers_count += 1
             self.saved_packets.append(data)
 
-
     def __fill_opus_config(self):
         while not self.all_headers_parsed():
             packet = self.get_next_opus_packet()
             if not packet:
-                raise NameError('Invalid Opus file')
+                raise NameError("Invalid Opus file")

@@ -1,4 +1,3 @@
-
 import os
 import asyncio
 import base64
@@ -16,11 +15,13 @@ WS_TIMEOUT_SEC = 2
 ZelloWS = None
 ZelloStreamID = None
 
+
 def load_config():
     with open("config.json") as f:
         config = json.load(f)
-        
+
     return config
+
 
 def main(config=load_config()):
     global ZelloWS, ZelloStreamID
@@ -30,13 +31,14 @@ def main(config=load_config()):
         password = config.get("password")
         token = config.get("token")
         channel = config.get("channel")
-        filename = "output.opus" #config['media']['filename']
+        filename = "output.opus"  # config['media']['filename']
     except KeyError as error:
         print("Check config file. Missing key:", error)
         return
 
-    asyncio.run(zello_stream_audio_to_channel(username, password,
-                token, channel, filename))
+    asyncio.run(
+        zello_stream_audio_to_channel(username, password, token, channel, filename)
+    )
 
 
 async def zello_stream_audio_to_channel(username, password, token, channel, opusfile):
@@ -44,13 +46,17 @@ async def zello_stream_audio_to_channel(username, password, token, channel, opus
     global ZelloWS, ZelloStreamID
     try:
         opus_stream = opus_file_stream.OpusFileStream(opusfile)
-        conn = aiohttp.TCPConnector(family = socket.AF_INET, ssl = False)
-        async with aiohttp.ClientSession(connector = conn) as session:
+        conn = aiohttp.TCPConnector(family=socket.AF_INET, ssl=False)
+        async with aiohttp.ClientSession(connector=conn) as session:
             async with session.ws_connect(WS_ENDPOINT) as ws:
                 ZelloWS = ws
-                await asyncio.wait_for(authenticate(ws, username, password, token, channel), WS_TIMEOUT_SEC)
+                await asyncio.wait_for(
+                    authenticate(ws, username, password, token, channel), WS_TIMEOUT_SEC
+                )
                 print(f"User {username} has been authenticated on {channel} channel")
-                stream_id = await asyncio.wait_for(zello_stream_start(ws, opus_stream), WS_TIMEOUT_SEC)
+                stream_id = await asyncio.wait_for(
+                    zello_stream_start(ws, opus_stream), WS_TIMEOUT_SEC
+                )
                 ZelloStreamID = stream_id
                 print(f"Started streaming {opusfile}")
                 await zello_stream_send_audio(session, ws, stream_id, opus_stream)
@@ -60,16 +66,21 @@ async def zello_stream_audio_to_channel(username, password, token, channel, opus
     except asyncio.TimeoutError:
         print("Communication timeout")
 
+
 async def authenticate(ws, username, password, token, channel):
     # https://github.com/zelloptt/zello-channel-api/blob/master/AUTH.md
-    await ws.send_str(json.dumps({
-        "command": "logon",
-        "seq": 1,
-        "auth_token": token,
-        "username": username,
-        "password": password,
-        "channel": channel
-    }))
+    await ws.send_str(
+        json.dumps(
+            {
+                "command": "logon",
+                "seq": 1,
+                "auth_token": token,
+                "username": username,
+                "password": password,
+                "channel": channel,
+            }
+        )
+    )
 
     is_authorized = False
     is_channel_available = False
@@ -78,13 +89,17 @@ async def authenticate(ws, username, password, token, channel):
             data = json.loads(msg.data)
             if "refresh_token" in data:
                 is_authorized = True
-            elif "command" in data and "status" in data and data["command"] == "on_channel_status":
+            elif (
+                "command" in data
+                and "status" in data
+                and data["command"] == "on_channel_status"
+            ):
                 is_channel_available = data["status"] == "online"
             if is_authorized and is_channel_available:
                 break
 
     if not is_authorized or not is_channel_available:
-        raise NameError('Authentication failed')
+        raise NameError("Authentication failed")
 
 
 async def zello_stream_start(ws, opus_stream):
@@ -94,17 +109,24 @@ async def zello_stream_start(ws, opus_stream):
 
     # Sample_rate is in little endian.
     # https://github.com/zelloptt/zello-channel-api/blob/409378acd06257bcd07e3f89e4fbc885a0cc6663/sdks/js/src/classes/utils.js#L63
-    codec_header = base64.b64encode(sample_rate.to_bytes(2, "little") + \
-        frames_per_packet.to_bytes(1, "big") + packet_duration.to_bytes(1, "big")).decode()
+    codec_header = base64.b64encode(
+        sample_rate.to_bytes(2, "little")
+        + frames_per_packet.to_bytes(1, "big")
+        + packet_duration.to_bytes(1, "big")
+    ).decode()
 
-    await ws.send_str(json.dumps({
-        "command": "start_stream",
-        "seq": 2,
-        "type": "audio",
-        "codec": "opus",
-        "codec_header": codec_header,
-        "packet_duration": packet_duration
-        }))
+    await ws.send_str(
+        json.dumps(
+            {
+                "command": "start_stream",
+                "seq": 2,
+                "type": "audio",
+                "codec": "opus",
+                "codec_header": codec_header,
+                "packet_duration": packet_duration,
+            }
+        )
+    )
 
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -118,14 +140,11 @@ async def zello_stream_start(ws, opus_stream):
                 # Ignore the messages we are not interested in
                 continue
 
-    raise NameError('Failed to create Zello audio stream')
+    raise NameError("Failed to create Zello audio stream")
 
 
 async def zello_stream_stop(ws, stream_id):
-    await ws.send_str(json.dumps({
-        "command": "stop_stream",
-        "stream_id": stream_id
-        }))
+    await ws.send_str(json.dumps({"command": "stop_stream", "stream_id": stream_id}))
 
 
 async def send_audio_packet(ws, packet):
@@ -136,8 +155,12 @@ async def send_audio_packet(ws, packet):
 
 def generate_zello_stream_packet(stream_id, packet_id, data):
     # https://github.com/zelloptt/zello-channel-api/blob/master/API.md#stream-data
-    return (1).to_bytes(1, "big") + stream_id.to_bytes(4, "big") + \
-        packet_id.to_bytes(4, "big") + data
+    return (
+        (1).to_bytes(1, "big")
+        + stream_id.to_bytes(4, "big")
+        + packet_id.to_bytes(4, "big")
+        + data
+    )
 
 
 async def zello_stream_send_audio(session, ws, stream_id, opus_stream):
